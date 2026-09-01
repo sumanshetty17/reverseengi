@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# runtime-generated, per-job data (see PROJECT_SPEC.md Phase 7: this
+# becomes a database/object-storage concern instead of local disk)
+reports/*
+downloads/*
+!reports/.gitkeep
+!downloads/.gitkeep
+
+.env
+.DS_Store

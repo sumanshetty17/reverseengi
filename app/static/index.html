@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteScope — public website analysis</title>
+<style>
+  :root {
+    --ink: #1b1f23; --paper: #fbfaf7; --line: #d8d3c8;
+    --observed: #2f5d50; --inferred: #8a6d1f; --unknown: #8a3b2f;
+    --mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+    --serif: 'Iowan Old Style', Georgia, serif;
+    --sans: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); }
+  header { padding:3rem 1.5rem 1.5rem; text-align:center; border-bottom:1px solid var(--line); }
+  header h1 { font-family:var(--serif); font-size:2.2rem; margin:0 0 .4rem; }
+  header p { color:#555; max-width:520px; margin:0 auto; font-size:.95rem; }
+  main { max-width:640px; margin:0 auto; padding:2rem 1.5rem 4rem; }
+  form { display:flex; gap:.5rem; margin-bottom:1rem; }
+  input[type=url] {
+    flex:1; padding:.75rem .9rem; font-family:var(--mono); font-size:.95rem;
+    border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink);
+  }
+  button {
+    padding:.75rem 1.3rem; border:none; border-radius:6px; background:var(--observed);
+    color:#fff; font-size:.95rem; cursor:pointer; font-weight:600;
+  }
+  button:disabled { opacity:.5; cursor:default; }
+  .options { display:flex; align-items:center; gap:.5rem; font-size:.85rem; color:#555; margin-bottom:2rem; }
+  .options input { width:4.5rem; font-family:var(--mono); padding:.3rem .4rem; border:1px solid var(--line); border-radius:4px; }
+  #status { font-family:var(--mono); font-size:.85rem; color:#555; min-height:1.4rem; }
+  #result { margin-top:1.5rem; }
+  .row { display:flex; gap:.6rem; margin-top:1rem; }
+  .row a {
+    display:inline-block; padding:.6rem 1rem; border:1px solid var(--line); border-radius:6px;
+    text-decoration:none; color:var(--ink); font-size:.85rem; background:#fff;
+  }
+  .row a:hover { border-color:var(--observed); color:var(--observed); }
+  .note { font-size:.8rem; color:#888; margin-top:2rem; line-height:1.5; }
+  .error { color:var(--unknown); font-family:var(--mono); font-size:.85rem; }
+  iframe { width:100%; height:70vh; border:1px solid var(--line); border-radius:8px; margin-top:1.5rem; background:#fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SiteScope</h1>
+  <p>Enter a public website URL for an evidence-backed analysis of its publicly observable implementation — identity, technologies, assets, forms, links, and security posture. Nothing private is claimed.</p>
+</header>
+<main>
+  <form id="analyze-form">
+    <input type="url" id="url-input" placeholder="https://example.com" required>
+    <button type="submit" id="submit-btn">Analyze</button>
+  </form>
+  <div class="options">
+    <label for="max-assets">Max assets to download:</label>
+    <input type="number" id="max-assets" value="20" min="1" max="60">
+  </div>
+  <div id="status"></div>
+  <div id="result"></div>
+  <p class="note">
+    SiteScope only inspects what a public, unauthenticated browser would receive. It blocks
+    requests to localhost, private, and internal network ranges, never forwards credentials,
+    and never claims to recover private backend source, databases, or protected APIs.
+  </p>
+</main>
+<script>
+const form = document.getElementById('analyze-form');
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+const submitBtn = document.getElementById('submit-btn');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = document.getElementById('url-input').value.trim();
+  const maxAssets = parseInt(document.getElementById('max-assets').value, 10) || 20;
+  resultEl.innerHTML = '';
+  submitBtn.disabled = true;
+  statusEl.textContent = 'Submitting job…';
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, max_assets: maxAssets }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Request failed (${res.status})`);
+    }
+    const { job_id } = await res.json();
+    statusEl.textContent = 'Analyzing… (fetching, parsing, fingerprinting)';
+    await poll(job_id);
+  } catch (err) {
+    statusEl.innerHTML = '';
+    resultEl.innerHTML = `<p class="error">Error: ${escapeHtml(err.message)}</p>`;
+    submitBtn.disabled = false;
+  }
+});
+
+async function poll(jobId) {
+  const start = Date.now();
+  while (Date.now() - start < 60000) {
+    const res = await fetch(`/api/report/${jobId}`);
+    const data = await res.json();
+    if (data.status === 'done') {
+      statusEl.textContent = '';
+      renderResult(jobId);
+      submitBtn.disabled = false;
+      return;
+    }
+    if (data.status === 'failed') {
+      statusEl.textContent = '';
+      resultEl.innerHTML = `<p class="error">Analysis failed: ${escapeHtml((data.errors || []).join('; '))}</p>`;
+      submitBtn.disabled = false;
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+  statusEl.textContent = '';
+  resultEl.innerHTML = '<p class="error">Timed out waiting for the job to finish.</p>';
+  submitBtn.disabled = false;
+}
+
+function renderResult(jobId) {
+  resultEl.innerHTML = `
+    <div class="row">
+      <a href="/api/report/${jobId}/html" target="_blank">Open full HTML report</a>
+      <a href="/api/report/${jobId}/json" target="_blank">View raw JSON</a>
+      <a href="/api/report/${jobId}/bundle">Download bundle (.zip)</a>
+    </div>
+    <iframe src="/api/report/${jobId}/html"></iframe>
+  `;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
