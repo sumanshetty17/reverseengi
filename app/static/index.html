@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Website Reverse Engineering — College Project</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --surface: #111827;
+      --surface2: #1f2937;
+      --border: #374151;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+    }
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input[type="url"], input[type="number"], select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+    .checkbox-row {
+      display: flex; gap: 1.5rem; margin-top: 1rem; flex-wrap: wrap;
+    }
+    .checkbox-row label {
+      display: flex; align-items: center; gap: 0.4rem; color: var(--text); cursor: pointer;
+    }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 1.25rem;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      margin-left: 0.5rem;
+    }
+    .btn-secondary:hover { background: var(--border); }
+    .status {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+    }
+    .status.queued { background: #1e3a5f; color: #93c5fd; }
+    .status.running { background: #78350f; color: #fcd34d; }
+    .status.completed { background: #064e3b; color: #6ee7b7; }
+    .status.failed { background: #7f1d1d; color: #fca5a5; }
+    .progress-bar {
+      height: 6px; background: var(--surface2); border-radius: 3px; margin: 1rem 0; overflow: hidden;
+    }
+    .progress-bar > div {
+      height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; }
+    code { background: var(--surface2); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+    .actions a, .actions button {
+      margin: 0; padding: 0.5rem 1rem; font-size: 0.85rem; text-decoration: none;
+      display: inline-block; border-radius: 6px;
+    }
+    .hidden { display: none; }
+    .tech-badge {
+      display: inline-block; background: var(--surface2); border: 1px solid var(--border);
+      padding: 0.2rem 0.6rem; border-radius: 6px; margin: 0.2rem; font-size: 0.85rem;
+    }
+    .tech-badge.high { border-color: var(--success); color: var(--success); }
+    .tech-badge.medium { border-color: var(--warn); color: var(--warn); }
+    #log {
+      background: #000; color: #a3e635; font-family: ui-monospace, monospace;
+      font-size: 0.8rem; padding: 1rem; border-radius: 8px; max-height: 180px;
+      overflow-y: auto; white-space: pre-wrap;
+    }
+    footer {
+      text-align: center; color: var(--muted); font-size: 0.8rem;
+      padding: 2rem; border-top: 1px solid var(--border); margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Website Reverse Engineering</h1>
+    <p>Deep analysis · Resource collection · Technology fingerprinting · GitHub-ready reconstruction ZIP</p>
+  </header>
+
+  <div class="container">
+    <!-- Input -->
+    <div class="card">
+      <h2>1. Enter Target URL</h2>
+      <label for="url">Website URL</label>
+      <input type="url" id="url" placeholder="https://example.com" value="https://example.com" />
+      <div class="row">
+        <div>
+          <label for="max_pages">Max pages</label>
+          <input type="number" id="max_pages" value="25" min="1" max="50" />
+        </div>
+        <div>
+          <label for="max_assets">Max assets</label>
+          <input type="number" id="max_assets" value="250" min="1" max="300" />
+        </div>
+        <div>
+          <label for="depth">Crawl depth</label>
+          <input type="number" id="depth" value="2" min="1" max="4" />
+        </div>
+      </div>
+      <div class="checkbox-row">
+        <label><input type="checkbox" id="browser_mode" checked /> Browser rendering (Playwright)</label>
+        <label><input type="checkbox" id="build_reconstruction" checked /> Build reconstruction ZIP</label>
+        <label><input type="checkbox" id="use_login" onchange="document.getElementById('loginBox').classList.toggle('hidden', !this.checked)" /> Site needs login (authorized account only)</label>
+      </div>
+      <div style="margin-top:1rem;">
+        <label for="proxy">Privacy proxy (optional)</label>
+        <input type="text" id="proxy" placeholder="http://user:pass@proxy-host:8080 or socks5://host:1080" />
+        <p style="color:var(--muted);font-size:0.8rem;margin-top:0.35rem;">If set, the target website sees the proxy IP instead of your server IP. Leave empty to use the server IP (e.g. Render). Use a proxy/VPN you control.</p>
+      </div>
+      <div id="loginBox" class="hidden" style="margin-top:1rem;padding:1rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.75rem;">Use only accounts you own or are allowed to access. Password is not stored in reports.</p>
+        <label for="login_url">Login page URL (optional if same as site)</label>
+        <input type="url" id="login_url" placeholder="https://example.com/login" />
+        <div class="row" style="margin-top:0.75rem;">
+          <div>
+            <label for="username">Username / email</label>
+            <input type="text" id="username" placeholder="you@example.com" autocomplete="username" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <div></div>
+        </div>
+      </div>
+      <button id="startBtn" onclick="startAnalysis()">Start Analysis</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="card hidden" id="progressCard">
+      <h2>2. Analysis Progress</h2>
+      <p>
+        Job <code id="jobId">—</code>
+        <span class="status queued" id="statusBadge">queued</span>
+      </p>
+      <div class="progress-bar"><div id="progressFill" style="width:0%"></div></div>
+      <p id="statusMsg" style="color:var(--muted);font-size:0.9rem;">Waiting…</p>
+      <div id="log"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="card hidden" id="resultsCard">
+      <h2>3. Results</h2>
+      <div id="summary"></div>
+      <div class="actions" id="downloadActions"></div>
+    </div>
+
+    <!-- Tech & Pages -->
+    <div class="card hidden" id="detailCard">
+      <h2>Technology Stack</h2>
+      <div id="techList"></div>
+      <h2 style="margin-top:1.5rem;">Pages Discovered</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>URL</th><th>Title</th><th>Forms</th><th>Images</th></tr></thead>
+          <tbody id="pagesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    College Project / Expo Demonstration · Website Reverse Engineering Platform v1.0
+  </footer>
+
+  <script>
+    let currentJobId = null;
+    let pollTimer = null;
+
+    function log(msg) {
+      const el = document.getElementById("log");
+      const ts = new Date().toLocaleTimeString();
+      el.textContent += `[${ts}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    async function startAnalysis() {
+      const url = document.getElementById("url").value.trim();
+      if (!url) { alert("Please enter a URL"); return; }
+
+      const body = {
+        url,
+        max_pages: parseInt(document.getElementById("max_pages").value) || 10,
+        max_assets: parseInt(document.getElementById("max_assets").value) || 80,
+        depth: parseInt(document.getElementById("depth").value) || 2,
+        browser_mode: document.getElementById("browser_mode").checked,
+        build_reconstruction: document.getElementById("build_reconstruction").checked,
+      };
+      if (document.getElementById("use_login").checked) {
+        body.login_url = document.getElementById("login_url").value.trim() || null;
+        body.username = document.getElementById("username").value.trim() || null;
+        body.password = document.getElementById("password").value || null;
+        if (!body.username || !body.password) {
+          alert("Enter username and password for authorized login, or uncheck login.");
+          return;
+        }
+        body.browser_mode = true;
+      }
+      const proxyVal = document.getElementById("proxy").value.trim();
+      if (proxyVal) body.proxy = proxyVal;
+
+      document.getElementById("startBtn").disabled = true;
+      document.getElementById("progressCard").classList.remove("hidden");
+      document.getElementById("resultsCard").classList.add("hidden");
+      document.getElementById("detailCard").classList.add("hidden");
+      document.getElementById("log").textContent = "";
+      log("Submitting analysis request…");
+
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Request failed");
+
+        currentJobId = data.job_id;
+        document.getElementById("jobId").textContent = currentJobId;
+        log(`Job queued: ${currentJobId}`);
+        pollTimer = setInterval(pollStatus, 1500);
+        pollStatus();
+      } catch (err) {
+        log("Error: " + err.message);
+        document.getElementById("startBtn").disabled = false;
+      }
+    }
+
+    async function pollStatus() {
+      if (!currentJobId) return;
+      try {
+        const res = await fetch(`/api/report/${currentJobId}`);
+        const job = await res.json();
+        const status = job.status || "unknown";
+        const badge = document.getElementById("statusBadge");
+        badge.textContent = status;
+        badge.className = "status " + status;
+        document.getElementById("statusMsg").textContent = job.message || "";
+        document.getElementById("progressFill").style.width = (job.progress || 0) + "%";
+
+        if (status === "completed") {
+          clearInterval(pollTimer);
+          log("Analysis completed successfully.");
+          showResults(job);
+          document.getElementById("startBtn").disabled = false;
+        } else if (status === "failed") {
+          clearInterval(pollTimer);
+          log("Analysis failed: " + (job.message || "unknown error"));
+          document.getElementById("startBtn").disabled = false;
+        }
+      } catch (err) {
+        log("Poll error: " + err.message);
+      }
+    }
+
+    function showResults(job) {
+      const report = job.report || {};
+      document.getElementById("resultsCard").classList.remove("hidden");
+      document.getElementById("detailCard").classList.remove("hidden");
+
+      const purpose = report.purpose || {};
+      const recon = report.reconstruction_status || {};
+      document.getElementById("summary").innerHTML = `
+        <p><strong>Executive summary:</strong> ${report.executive_summary || "—"}</p>
+        <p style="margin-top:0.75rem;"><strong>Purpose:</strong> ${purpose.inferred_positioning || "—"}</p>
+        <p><strong>Title:</strong> ${purpose.title || "—"}</p>
+        <p><strong>Motto/slogan:</strong> ${purpose.explicit_motto_or_slogan || "(none found)"}</p>
+        <p style="margin-top:0.75rem;">
+          Pages crawled: <strong>${report.pages_crawled || 0}</strong> ·
+          Assets collected: <strong>${recon.assets_collected || 0}</strong> ·
+          Failed: <strong>${recon.assets_failed || 0}</strong>
+        </p>
+      `;
+
+      const actions = document.getElementById("downloadActions");
+      actions.innerHTML = `
+        <a class="btn-secondary" href="/api/report/${currentJobId}/html" target="_blank">View HTML Report</a>
+        <a class="btn-secondary" href="/api/report/${currentJobId}/json" target="_blank">Download JSON Report</a>
+        <a class="btn-secondary" href="/api/report/${currentJobId}/bundle">Download Report Bundle</a>
+        <a href="/api/reconstruction/${currentJobId}/zip">Download Reconstruction ZIP</a>
+      `;
+
+      // Technologies
+      const techs = report.technologies || [];
+      document.getElementById("techList").innerHTML = techs.length
+        ? techs.map(t => `<span class="tech-badge ${t.confidence}">${t.name} (${t.confidence})</span>`).join("")
+        : "<span style='color:var(--muted)'>No technologies detected</span>";
+
+      // Pages
+      const pages = report.pages_and_routes || [];
+      document.getElementById("pagesBody").innerHTML = pages.map(p => `
+        <tr>
+          <td><a href="${p.url}" target="_blank">${p.url}</a></td>
+          <td>${p.title || "—"}</td>
+          <td>${p.forms || 0}</td>
+          <td>${p.images || 0}</td>
+        </tr>
+      `).join("") || "<tr><td colspan='4'>No pages</td></tr>";
+    }
+  </script>
+</body>
+</html>
