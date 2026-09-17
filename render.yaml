@@ -1,0 +1,15 @@
+# Render Blueprint — Web Service
+# Uses Docker so we can build on Microsoft's official Playwright image,
+# which ships Chromium and its OS-level dependencies preinstalled.
+# Render's native "python" runtime build user has no root/sudo access,
+# so `playwright install --with-deps` always fails there with
+# "su: Authentication failure".
+services:
+  - type: web
+    name: website-reverse-engineering
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: "8000"
